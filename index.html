@@ -91,6 +91,8 @@ header .head-call:hover{background:#F5B554}
   display:flex;align-items:center;gap:.6rem;
 }
 .hero-loc .dot{width:8px;height:8px;border-radius:50%;background:var(--amber)}
+.hero-loc .dot.closed{background:#6E7684}
+#openstatus{font-variant-numeric:tabular-nums}
 h1{
   font-family:var(--display);
   font-size:clamp(3.4rem,9.5vw,8.6rem);
@@ -420,7 +422,7 @@ footer p{color:var(--steel-dim);font-size:.85rem}
   <!-- HERO -->
   <section class="hero">
     <div class="hero-copy">
-      <p class="hero-loc"><span class="dot" aria-hidden="true"></span>7608 Grier Rd &middot; Charlotte, NC &middot; Open now: Mon&ndash;Sat</p>
+      <p class="hero-loc"><span class="dot" id="statusdot" aria-hidden="true"></span>7608 Grier Rd &middot; Charlotte, NC &middot; <span id="openstatus">Checking hours&hellip;</span></p>
       <h1>Diagnosed,<br>not <span class="amber">guessed.</span></h1>
       <p class="hero-sub"><strong>Mechanical and electrical repair for American and German vehicles.</strong> Gas or diesel. We find the fault, explain it in plain English, and you decide what happens next &mdash; before a wrench turns.</p>
       <div class="hero-actions">
@@ -621,9 +623,45 @@ footer p{color:var(--steel-dim);font-size:.85rem}
 
 <script>
 (function(){
-  var d=new Date().getDay();
-  var row=document.querySelector('#hours div[data-day="'+d+'"]');
-  if(row)row.classList.add('today');
+  var TZ='America/New_York';
+  var HOURS={0:null,1:[9,18],2:[9,18],3:[9,18],4:[9,18],5:[9,18],6:[9,15]}; // Sun closed; Mon-Fri 9-6; Sat 9-3
+  var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function fmt(h){var am=h<12?'AM':'PM';var hh=h%12;if(hh===0)hh=12;return hh+' '+am;}
+  function ncNow(){
+    var parts=new Intl.DateTimeFormat('en-US',{timeZone:TZ,weekday:'short',hour:'numeric',minute:'numeric',hourCycle:'h23'}).formatToParts(new Date());
+    var wd='',h=0,m=0;
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      if(p.type==='weekday')wd=p.value;
+      else if(p.type==='hour')h=parseInt(p.value,10);
+      else if(p.type==='minute')m=parseInt(p.value,10);
+    }
+    var di={'Sun':0,'Mon':1,'Tue':2,'Wed':3,'Thu':4,'Fri':5,'Sat':6}[wd];
+    if(isNaN(di)){di=new Date().getDay();}
+    return {day:di,t:h*60+m};
+  }
+  function update(){
+    var n=ncNow(),h=HOURS[n.day],el=document.getElementById('openstatus'),dot=document.getElementById('statusdot'),txt;
+    if(h&&n.t>=h[0]*60&&n.t<h[1]*60){
+      txt='Open now, until '+fmt(h[1]);
+      if(dot)dot.classList.remove('closed');
+    }else{
+      if(dot)dot.classList.add('closed');
+      if(h&&n.t<h[0]*60){txt='Closed now, opens today at '+fmt(h[0]);}
+      else{
+        for(var i=1;i<=7;i++){
+          var nh=HOURS[(n.day+i)%7];
+          if(nh){txt='Closed now, opens '+(i===1?'tomorrow at ':DAYS[(n.day+i)%7]+' at ')+fmt(nh[0]);break;}
+        }
+      }
+    }
+    if(el)el.textContent=txt;
+    var row=document.querySelector('#hours div[data-day="'+n.day+'"]');
+    if(row)row.classList.add('today');
+  }
+  update();
+  setInterval(update,30000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)update();});
 })();
 </script>
 </body>
